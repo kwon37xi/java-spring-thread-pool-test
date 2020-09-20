@@ -50,7 +50,8 @@ public class ThreadPoolTester {
                     e.printStackTrace();
                 }
                 countDownLatch.countDown();
-                System.out.printf("# current thread [%s] idx : %d, countDownLatch : %d END%n", Thread.currentThread().getName(), value, countDownLatch.getCount());
+                System.out.printf("# current thread [%s] idx : %d, , current active thread count %d, countDownLatch : %d END%n",
+                        Thread.currentThread().getName(), value, Thread.activeCount(), countDownLatch.getCount());
             });
         }
 

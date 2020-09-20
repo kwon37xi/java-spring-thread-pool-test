@@ -37,7 +37,7 @@ public enum PoolStrategy {
     },
     /**
      * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 정수최대, queueCapacity : 0
-     * 사실상 ExecutorSerive의 cachedThreadPool 과 같다.
+     * 사실상 Executors.newCachedThreadPool() 과 같다.
      */
     THREAD_POOL_TASK_EXECUTOR_CORE_POOL_SIZE_AND_QUEUE_0 {
         @Override
@@ -52,6 +52,7 @@ public enum PoolStrategy {
     },
     /**
      * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 정수최대, queueCapacity : 정수최대
+     * 사실상 Executors.newFixedThreadPool() 과 같다.
      */
     THREAD_POOL_TASK_EXECUTOR_QUEUE_INTMAX {
         @Override
@@ -65,13 +66,15 @@ public enum PoolStrategy {
         }
     },
     /**
-     * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 정수최대, queueCapacity : 10
-     * 작은 수의 queueCapacity는 0이랑 별로 차이 없음.
+     * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 정수최대, queueCapacity : 40000
+     * <p/>
+     * core/max/queueCapcity 의 관계 : core 갯수만큼 생성후 queue 를 넘어선 뒤에야 maxPoolSize 만큼 증가된다.
+     *
      */
-    THREAD_POOL_TASK_EXECUTOR_MAX_INTMAX_QUEUE_10 {
+    THREAD_POOL_TASK_EXECUTOR_MAX_INTMAX_QUEUE_40000 {
         @Override
         public Executor getExecutor() {
-            return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, Integer.MAX_VALUE, 10);
+            return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, Integer.MAX_VALUE, 40000);
         }
 
         @Override
@@ -80,12 +83,14 @@ public enum PoolStrategy {
         }
     },
     /**
-     * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 1000, queueCapacity : 0
+     * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 2000, queueCapacity : 0
+     * <p/>
+     * corePoolSize &lt; maxPoolSize, queueCapacity = 0 이면, maxPoolSize에 도달하는 순간 죽어버린다. 왜?
      */
-    THREAD_POOL_TASK_EXECUTOR_MIN_MAX_SAME_QUEUE_0 {
+    THREAD_POOL_TASK_EXECUTOR_MAX_LIMITED_SAME_QUEUE_0 {
         @Override
         public Executor getExecutor() {
-            return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, 0);
+            return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, ThreadPoolTester.DEFAULT_CORE_POOL_SIZE * 2, 0);
         }
 
         @Override
