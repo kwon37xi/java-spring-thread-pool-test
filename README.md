@@ -7,6 +7,17 @@
 * [Java: What is the limit to the number of threads you can create? | Vanilla #Java](http://vanillajava.blogspot.com/2011/07/java-what-is-limit-to-number-of-threads.html)
 * 위 문서에 따르면 64Bit Linux 에서 32,072 개의 쓰레드가 생성가능함.
 
+## java.util.concurrent.ThreadPoolExecutor
+* [java.util.concurrent.ThreadPoolExecutor](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html)
+* [Executors](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/concurrent/Executors.html) 와
+ SpringFramework의 [ThreadPoolTaskExecutor](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/scheduling/concurrent/ThreadPoolTaskExecutor.html) 가
+ 사용하는 쓰레드 풀 구현체
+* 기본적으로 `corePoolSize` 만큼의 쓰레드를 만들고,
+* `corePool`이 꽉차면 `workQueue`(`queueCapacity` 만큼의 크기로 된 큐)에 넣는데
+* `workQueue`조차도 꽉차면 그제서야 `maxPoolSize` 까지 쓰레드를 생성해가면서 작업.
+* 따라서 `corePoolSize`가 0이 아니고 일정 수준 이상되고 `queueCapacity`가 매우 크다면(보통 `Integer.MAX_VALUE`) 별다른 문제가 없는한
+쓰레드 풀의 크기는 `corePoolSize`를 넘길 수 없다.
+
 ## ThreadPoolTaskExecutor 를 CachedThreadPool 처럼 사용하는 방법
 * `corePoolSize` : `0`
 * `maxPoolSize` : `Integer.MAX_VALUE`
@@ -122,6 +133,15 @@ return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
   * `maxPoolSize` : `Integer.MAX_VALUE`
   * `queueCapacity` : `0` - 큐가 없으므로 `maxPoolSize`만큼 즉각 증가시킨다.
 ```
+./gradlew run --args="THREAD_POOL_TASK_EXECUTOR_CORE_POOL_SIZE_AND_QUEUE_0" 
+```
+* 결과
+  * 총 쓰레드 32599 개를 생성하고 죽음.
+  * 한개의 쓰레드도 작업을 마치지 못함.
+  * `# after thread generation ...` 출력안됨. 즉, 쓰레드 생성 반복문을 마치지도 못했음.
+  * `Executors.newCachedThreadPool()`과 동일한 결과
+
+```
 # current thread [MYTHREADPOOL-32595] idx : 32594, current active thread count 32597
 # current thread [MYTHREADPOOL-32596] idx : 32595, current active thread count 32598
 # current thread [MYTHREADPOOL-32597] idx : 32596, current active thread count 32599
@@ -152,17 +172,16 @@ OpenJDK 64-Bit Server VM warning: Attempt to deallocate stack guard pages failed
 OpenJDK 64-Bit Server VM warning: INFO: os::commit_memory(0x00007f72d75d2000, 12288, 0) failed; error='메모리를 할당할 수 없습니다' (errno=12)
 
 ```
-* 결과
-  * 총 쓰레드 32599 개를 생성하고 죽음.
-  * 한개의 쓰레드도 작업을 마치지 못함.
-  * `# after thread generation ...` 출력안됨. 즉, 쓰레드 생성 반복문을 마치지도 못했음.
-  * `Executors.newCachedThreadPool()`과 동일한 결과
 
 ## THREAD_POOL_TASK_EXECUTOR_QUEUE_INTMAX
 * `ThreadPoolTaskExecutor` == `Executors.newFixedThreadPool()` 유사한 설정
   * `corePoolSize` : `1000` - 쓰레드 풀 항상 1000개 유지
   * `maxPoolSize` : `Integer.MAX_VALUE`
   * `queueCapacity` : `Integer.MAX_VALUE`
+```
+./gradlew run --args="THREAD_POOL_TASK_EXECUTOR_QUEUE_INTMAX" 
+```
+
 * 결과
   * `idx: 999` 에서  `# after thread generation ...` 가 출렸됐다는 것은 이 시점에는 이미 
   쓰레드 풀 Queue 에 모든 요청이 들어갔다는 의미임.
@@ -188,6 +207,10 @@ OpenJDK 64-Bit Server VM warning: INFO: os::commit_memory(0x00007f72d75d2000, 12
   * `corePoolSize` : `1000`
   * `maxPoolSize` : `Integer.MAX_VALUE`
   * `queueCapacity` : `40,000`
+```
+./gradlew run --args="THREAD_POOL_TASK_EXECUTOR_MAX_INTMAX_QUEUE_40000" 
+```
+
 * 결과
   * 쓰레드를 총 50,000개 생성하는데, `idx=999`까지만 쓰레드를 생성하다가 그 이후에는 queue에 넣다가
   * queue 가 꽉차는 41,000 개 째부터 더이상 queue에 넣을 수 없어서 `maxPoolSize=Integer.MAX_VALUE`에 따라 Thread를
@@ -196,6 +219,7 @@ OpenJDK 64-Bit Server VM warning: INFO: os::commit_memory(0x00007f72d75d2000, 12
   모두다 할당이 완료되었기 때문에 그 순간 `# after thread generation ...`이 출력되면서
   모든 작업을 threadPool에 넣는 것이 완료됨을 볼 수 있다.
   * 쓰레드 갯수가 한계 수치인 `30,000`개 이상까지 가지 않고 `10,001`에 계속 머물렀기 때문에 모든 작업을 완료하였다.
+
 ```
 # current thread [MYTHREADPOOL-998] idx : 997, current active thread count 1000
 # current thread [MYTHREADPOOL-999] idx : 998, current active thread count 1001
@@ -224,6 +248,40 @@ OpenJDK 64-Bit Server VM warning: INFO: os::commit_memory(0x00007f72d75d2000, 12
   * `corePoolSize` : `1000`
   * `maxPoolSize` : `2000` 
   * `queueCapacity` : `0`
+
+```
+./gradlew run --args="THREAD_POOL_TASK_EXECUTOR_MAX_LIMITED_SAME_QUEUE_0" 
+```
+
 * 결과
-  * 2000개의 작업을 넣고나서 멈춰버림.
-  * TODO : 왜 멈추나?
+  * 2000개의 작업을 넣고나서 멈춰버렸다.
+  * `# after thread generation ...`, `# The end` 둘다 출력이 안된다.
+  * 2000개 이상 작업을 넣으려고 하면 예외가 발생한다.
+    * `java.util.concurrent.RejectedExecutionException: Task kr.pe.kwonnam.java_spring_threadpool.ThreadPoolTester$$Lambda$3/1598924227@333291e3 rejected from java.util.concurrent.ThreadPoolExecutor@479d31f3[Running, pool size = 2000, active threads = 2000, queued tasks = 0, completed tasks = 0]`
+    * `Exception in thread "main" org.springframework.core.task.TaskRejectedException: Executor [java.util.concurrent.ThreadPoolExecutor@479d31f3[Running, pool size = 2000, active threads = 2000, queued tasks = 0, completed tasks = 0]] did not accept task: kr.pe.kwonnam.java_spring_threadpool.ThreadPoolTester$$Lambda$3/1598924227@333291e3`
+  * 이미 쓰레드 풀에 들어간 작업은 수행이 잘 종료됐다.
+  * 쓰레드 풀의 쓰레드들이 Lock 대기 상태로 들어갔다.
+  * 뿐만 아니라 `main` 쓰레드도 Lock 대기 상태에 들어갔다.
+    * 이미 main 쓰레드에서 `try/catch` 없이 Exception 이 발생했으므로 `CountDownLatch.await()` 때문은 아닐 것으로 보임.
+    * `main` 쓰레드는 이미 종료되었고 `DestroyJavaVM` 쓰레드가 활성화된 상태로 Lock 대기 상태에 빠짐.
+```
+# current thread [MYTHREADPOOL-1999] idx : 1998, current active thread count 2001
+# current thread [MYTHREADPOOL-2000] idx : 1999, current active thread count 2001
+Exception in thread "main" org.springframework.core.task.TaskRejectedException: Executor [java.util.concurrent.ThreadPoolExecutor@479d31f3[Running, pool size = 2000, active threads = 2000, queued tasks = 0, completed tasks = 0]] did not accept task: kr.pe.kwonnam.java_spring_threadpool.ThreadPoolTester$$Lambda$3/1598924227@333291e3
+        at org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.execute(ThreadPoolTaskExecutor.java:324)
+        at kr.pe.kwonnam.java_spring_threadpool.ThreadPoolTester.main(ThreadPoolTester.java:43)
+Caused by: java.util.concurrent.RejectedExecutionException: Task kr.pe.kwonnam.java_spring_threadpool.ThreadPoolTester$$Lambda$3/1598924227@333291e3 rejected from java.util.concurrent.ThreadPoolExecutor@479d31f3[Running, pool size = 2000, active threads = 2000, queued tasks = 0, completed tasks = 0]
+        at java.util.concurrent.ThreadPoolExecutor$AbortPolicy.rejectedExecution(ThreadPoolExecutor.java:2063)
+        at java.util.concurrent.ThreadPoolExecutor.reject(ThreadPoolExecutor.java:830)
+        at java.util.concurrent.ThreadPoolExecutor.execute(ThreadPoolExecutor.java:1379)
+        at org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.execute(ThreadPoolTaskExecutor.java:321)
+        ... 1 more
+# current thread [MYTHREADPOOL-1] idx : 0, , current active thread count 2001, countDownLatch : 49999 END
+# current thread [MYTHREADPOOL-2] idx : 1, , current active thread count 2001, countDownLatch : 49998 END
+.....
+
+# current thread [MYTHREADPOOL-1997] idx : 1996, , current active thread count 2001, countDownLatch : 48003 END
+# current thread [MYTHREADPOOL-1998] idx : 1997, , current active thread count 2001, countDownLatch : 48002 END
+# current thread [MYTHREADPOOL-1999] idx : 1998, , current active thread count 2001, countDownLatch : 48001 END
+# current thread [MYTHREADPOOL-2000] idx : 1999, , current active thread count 2001, countDownLatch : 48000 END
+```
