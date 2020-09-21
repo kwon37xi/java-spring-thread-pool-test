@@ -25,7 +25,7 @@
 
 ## ThreadPoolTaskExecutor 를 FixedThreadPool 처럼 사용하는 방법
 *  `corePoolSize` : 원하는 고정 크기 쓰레드 갯수
-* `maxPoolSize` : `Integer.MAX_VALUE`
+* `maxPoolSize` : `Integer.MAX_VALUE` (원래 FixedThreadPool 은 `corePoolSize==maxPoolSize`이나 만일에 사태에 대비.)
 * `queueCapacity` : `Integer.MAX_VALUE`
 * 위와 같이 설정하면 실제로는 `corePoolSize` 만큼만 쓰레드가 생성된다.
 * 만약 쓰레드가 적체되어 `corePoolSize` 이상의 작업이 들어오면 `queue` 에 `queueCapacity`만큼 들어가고,
@@ -264,6 +264,8 @@ OpenJDK 64-Bit Server VM warning: INFO: os::commit_memory(0x00007f72d75d2000, 12
   * 뿐만 아니라 `main` 쓰레드도 Lock 대기 상태에 들어갔다.
     * 이미 main 쓰레드에서 `try/catch` 없이 Exception 이 발생했으므로 `CountDownLatch.await()` 때문은 아닐 것으로 보임.
     * `main` 쓰레드는 이미 종료되었고 `DestroyJavaVM` 쓰레드가 활성화된 상태로 Lock 대기 상태에 빠짐.
+    * 추측 : 쓰레드 풀의 쓰레드가 Daemon 이 아니라서, 모두 종료될때까지 기다리는 것인가?
+
 ```
 # current thread [MYTHREADPOOL-1999] idx : 1998, current active thread count 2001
 # current thread [MYTHREADPOOL-2000] idx : 1999, current active thread count 2001
