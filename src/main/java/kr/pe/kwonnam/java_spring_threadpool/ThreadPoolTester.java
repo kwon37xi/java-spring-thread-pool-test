@@ -37,27 +37,33 @@ public class ThreadPoolTester {
         System.out.printf("# Starting with Thread Pool %s%n", poolStrategy.name());
         Executor executor = poolStrategy.getExecutor();
 
-        CountDownLatch countDownLatch = new CountDownLatch(TARGET_THREAD_COUNT);
-        for (int idx = 0; idx < TARGET_THREAD_COUNT; idx++) {
-            int value = idx;
-            executor.execute(() -> {
-                System.out.printf("# current thread [%s] idx : %d, current active thread count %d%n",
-                        Thread.currentThread().getName(), value, Thread.activeCount());
-                try {
-                    // 5초만 지연돼도 컴퓨터 입장에서는 상당한 지연이다.
-                    TimeUnit.SECONDS.sleep(5);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                countDownLatch.countDown();
-                System.out.printf("# current thread [%s] idx : %d, , current active thread count %d, countDownLatch : %d END%n",
-                        Thread.currentThread().getName(), value, Thread.activeCount(), countDownLatch.getCount());
-            });
+        try {
+
+            CountDownLatch countDownLatch = new CountDownLatch(TARGET_THREAD_COUNT);
+            for (int idx = 0; idx < TARGET_THREAD_COUNT; idx++) {
+                int value = idx;
+                executor.execute(() -> {
+                    System.out.printf("# current thread [%s] idx : %d, current active thread count %d%n",
+                            Thread.currentThread().getName(), value, Thread.activeCount());
+                    try {
+                        // 5초만 지연돼도 컴퓨터 입장에서는 상당한 지연이다.
+                        TimeUnit.SECONDS.sleep(5);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    countDownLatch.countDown();
+                    System.out.printf("# current thread [%s] idx : %d, , current active thread count %d, countDownLatch : %d END%n",
+                            Thread.currentThread().getName(), value, Thread.activeCount(), countDownLatch.getCount());
+                });
+            }
+
+            System.out.println("# after thread generation ...");
+            countDownLatch.await();
+            System.out.println("# The end");
+        } finally {
+            System.out.println("# shutting down executor");
+            poolStrategy.shutdown(executor);
         }
 
-        System.out.println("# after thread generation ...");
-        countDownLatch.await();
-        System.out.println("# The end");
-        poolStrategy.shutdown(executor);
     }
 }

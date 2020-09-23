@@ -51,13 +51,13 @@ public enum PoolStrategy {
         }
     },
     /**
-     * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : 정수최대, queueCapacity : 정수최대
+     * SpringFramework ThreadPoolTaskExecutor corePoolSize 1000, maxPoolSize : corePoolSize 와 동일, queueCapacity : 정수최대
      * 사실상 Executors.newFixedThreadPool() 과 같다.
      */
     THREAD_POOL_TASK_EXECUTOR_QUEUE_INTMAX {
         @Override
         public Executor getExecutor() {
-            return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+            return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, Integer.MAX_VALUE);
         }
 
         @Override
@@ -87,7 +87,7 @@ public enum PoolStrategy {
      * <p/>
      * corePoolSize &lt; maxPoolSize, queueCapacity = 0 이면, maxPoolSize에 도달하는 순간 죽어버린다. 왜?
      */
-    THREAD_POOL_TASK_EXECUTOR_MAX_LIMITED_SAME_QUEUE_0 {
+    THREAD_POOL_TASK_EXECUTOR_MAX_LIMITED_QUEUE_0 {
         @Override
         public Executor getExecutor() {
             return createThreadPoolTaskExecutor(ThreadPoolTester.DEFAULT_CORE_POOL_SIZE, ThreadPoolTester.DEFAULT_CORE_POOL_SIZE * 2, 0);
