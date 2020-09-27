@@ -5,6 +5,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 
 public enum PoolStrategy {
     /**
@@ -97,7 +98,49 @@ public enum PoolStrategy {
         public void shutdown(Executor executor) {
             ((ThreadPoolTaskExecutor) executor).shutdown();
         }
-    };
+    },
+    /**
+     * @see ForkJoinPool
+     * @see ForkJoinPool#commonPool()
+     *
+     * <ul>
+     *     <li>기본적으으로 프로세스 갯수만큼 쓰레드풀 생성함.</li>
+     *     <li>java.util.concurrent.ForkJoinPool.common.parallelism - parallelism level : 풀 사이즈?</li>
+     *     <li>java.util.concurrent.ForkJoinPool.common.threadFactory - the class name of a ForkJoinPool.ForkJoinWorkerThreadFactory</li>
+     *     <li>java.util.concurrent.ForkJoinPool.common.exceptionHandler - the class name of a Thread.UncaughtExceptionHandler</li>
+     * </ul>
+     */
+    FORK_JOIN_COMMON_POOL {
+        @Override
+        public Executor getExecutor() {
+            System.out.printf("current java.util.concurrent.ForkJoinPool.common.parallelism : %d%n", System.getProperty("java.util.concurrent.ForkJoinPool.common.parallelism"));
+            return ForkJoinPool.commonPool();
+        }
+
+        @Override
+        public void shutdown(Executor executor) {
+            // java.util.concurrent.ForkJoinPool.commonPool 에 따르면 System.exit() 시에 자동으로  shutDown 된다.
+        }
+    },
+    /**
+     * <pre>
+     *      ./gradlew run --args="FORK_JOIN_COMMON_POOL_PARALLELISM_1000"
+     * </pre>
+     */
+    FORK_JOIN_COMMON_POOL_PARALLELISM_1000 {
+        @Override
+        public Executor getExecutor() {
+            System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "1000");
+            System.out.printf("current java.util.concurrent.ForkJoinPool.common.parallelism : %s%n", System.getProperty("java.util.concurrent.ForkJoinPool.common.parallelism"));
+            return ForkJoinPool.commonPool();
+        }
+
+        @Override
+        public void shutdown(Executor executor) {
+            // java.util.concurrent.ForkJoinPool.commonPool 에 따르면 System.exit() 시에 자동으로  shutDown 된다.
+        }
+    }
+    ;
 
     public abstract Executor getExecutor();
     public abstract void shutdown(Executor executor);
