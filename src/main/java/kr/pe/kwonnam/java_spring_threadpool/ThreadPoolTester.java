@@ -31,6 +31,8 @@ public class ThreadPoolTester {
     public static final int DEFAULT_CORE_POOL_SIZE = 1000;
 
     public static void main(String[] args) throws InterruptedException {
+        printHeapInfo();
+
         String strategyName = Stream.of(args).findFirst().orElse(PoolStrategy.EXECUTOR_SERVICE_CACHED.name());
         PoolStrategy poolStrategy = PoolStrategy.valueOf(strategyName);
 
@@ -65,5 +67,20 @@ public class ThreadPoolTester {
             poolStrategy.shutdown(executor);
         }
 
+    }
+
+    /**
+     * @see <a href="https://stackoverflow.com/a/44603197/1051402">https://stackoverflow.com/a/44603197/1051402</a>
+     */
+    private static void printHeapInfo() {
+        // Get maximum size of heap in bytes. The heap cannot grow beyond this size.// Any attempt will result in an OutOfMemoryException.
+        long heapMaxSize = Runtime.getRuntime().maxMemory();
+        System.out.println("heapmaxsize : " + formatSize(heapMaxSize));
+    }
+
+    public static String formatSize(long v) {
+        if (v < 1024) return v + " B";
+        int z = (63 - Long.numberOfLeadingZeros(v)) / 10;
+        return String.format("%.1f %sB", (double) v / (1L << (z * 10)), " KMGTPE".charAt(z));
     }
 }
