@@ -302,3 +302,48 @@ Caused by: java.util.concurrent.RejectedExecutionException: Task kr.pe.kwonnam.j
 ┆...at org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.execute(ThreadPoolTaskExecutor.java:321)
 ┆...... 1 more
 ```
+
+
+## FORK_JOIN_COMMON_POOL
+* `java.util.concurrent.ForkJoinPool.commonPool()`
+  * 아무 설정이 없으면 CPU Thread 갯수만큼의 크기(`Runtime.getRuntime().availableProcessors()`)로 쓰레드 풀을 생성한다.
+  * `Intel(R) Core(TM) i7-9750H CPU` 에서 12 개 크기로 생성됨.
+  * 너무 적게 생성되고 자동 확장이 일어나지 않으므로 주의해서 사용한다.
+  * System Property `java.util.concurrent.ForkJoinPool.common.parallelism=1000` 형태로 쓰레드 풀의 크기를 명시할 수 있다.
+
+```
+./gradlew run --args="FORK_JOIN_COMMON_POOL" 
+```
+* 결과
+  * 11개 정도의 쓰레드가 시작되자 `# after thread generation ...` 이 출력되었으므로, Thread 에 `workQueue`가 존재하고 모든 요청이 큐에 적재됐음을 뜻한다.
+  * `current active thread count 12` 로 항상 12개의 쓰레드를 유지하고 있다.
+  * main 포함 13개여야 하는데 12개만 active 이고, 다른 작업이 끝난 뒤에 idx 12 번이 `# current thread [ForkJoinPool.commonPool-worker-15] idx : 12, current active thread count 12` 이렇게 시작되었다.
+   즉, 쓰레드 풀이 실제로는 11개만 작동하고 있다.
+  * `# The end`와 `# shutting down executor` 마지막에 함께 출력되면서 무사히 작어을 마쳤다.
+```
+# Starting with Thread Pool FORK_JOIN_COMMON_POOL
+current java.util.concurrent.ForkJoinPool.common.parallelism : null
+# current thread [ForkJoinPool.commonPool-worker-9] idx : 0, current active thread count 6
+# current thread [ForkJoinPool.commonPool-worker-2] idx : 1, current active thread count 6
+# current thread [ForkJoinPool.commonPool-worker-11] idx : 2, current active thread count 6
+# current thread [ForkJoinPool.commonPool-worker-6] idx : 5, current active thread count 12
+# current thread [ForkJoinPool.commonPool-worker-13] idx : 4, current active thread count 11
+# current thread [ForkJoinPool.commonPool-worker-4] idx : 3, current active thread count 10
+# current thread [ForkJoinPool.commonPool-worker-8] idx : 6, current active thread count 10
+# current thread [ForkJoinPool.commonPool-worker-3] idx : 10, current active thread count 12
+# current thread [ForkJoinPool.commonPool-worker-10] idx : 9, current active thread count 12
+# current thread [ForkJoinPool.commonPool-worker-1] idx : 8, current active thread count 12
+# current thread [ForkJoinPool.commonPool-worker-15] idx : 7, current active thread count 12
+# after thread generation ...
+# current thread [ForkJoinPool.commonPool-worker-9] idx : 0, , current active thread count 12, countDownLatch : 49997 END
+# current thread [ForkJoinPool.commonPool-worker-15] idx : 7, , current active thread count 12, countDownLatch : 49989 END
+# current thread [ForkJoinPool.commonPool-worker-15] idx : 12, current active thread count 12
+
+.....
+
+# current thread [ForkJoinPool.commonPool-worker-11] idx : 49997, , current active thread count 12, countDownLatch : 2 END
+# current thread [ForkJoinPool.commonPool-worker-2] idx : 49998, , current active thread count 12, countDownLatch : 1 END
+# current thread [ForkJoinPool.commonPool-worker-6] idx : 49999, , current active thread count 12, countDownLatch : 0 END
+# The end
+# shutting down executor
+```
