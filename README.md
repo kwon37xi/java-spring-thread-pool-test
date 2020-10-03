@@ -303,7 +303,6 @@ Caused by: java.util.concurrent.RejectedExecutionException: Task kr.pe.kwonnam.j
 ┆...... 1 more
 ```
 
-
 ## FORK_JOIN_COMMON_POOL
 * `java.util.concurrent.ForkJoinPool.commonPool()`
   * 아무 설정이 없으면 CPU Thread 갯수만큼의 크기(`Runtime.getRuntime().availableProcessors()`)로 쓰레드 풀을 생성한다.
@@ -347,3 +346,81 @@ current java.util.concurrent.ForkJoinPool.common.parallelism : null
 # The end
 # shutting down executor
 ```
+
+## FORK_JOIN_COMMON_POOL_PARALLELISM_1000
+* `java.util.concurrent.ForkJoinPool.commonPool()` 이지만 `parallelism` 을 `1000` 으로 지정하였다.
+  * `System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", "1000");`
+```
+./gradlew run --args="FORK_JOIN_COMMON_POOL_PARALLELISM_1000" 
+```
+
+* 결과
+  * 실행순서가 상당히 뒤죽박죽이다.
+  * 다른 쓰레드 풀(`ThreadPoolExecutor` 기반)은 Java Heap Size와 무관하게 작동하였는데, `ForkJoinPool`은 Heap Size에 따라 메모리 할당을 못하는 현상이 발생하였다.
+  * Pool 사이즈가 `1000`이 되기 이전에 `# after thread generation ...`가 출력되었다. 
+  * `# after thread generation ...` 가 출력되었으므로 `workQueue`에 모든 작업이 들어갔다.
+  * 중간에 Memory 부족이 발생했으나, 일부 쓰레드만 실패하고, 계속 진행되었다.
+  * 계속 작업은 진행되고 시스템 다운도 안되지만, `# The end` 는 출력되지 않는다.
+  * `OutOfMemory`로 실행되지 못한 쓰레드들이 `CountDownLatch`를 제대로 줄여주지 못해서 `countDownLatch.await();` 부분에 영원히 멈춰있게 된다.
+    * `java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)`
+  * `-Xmx4g` 옵션을 주고 실행하면 모두 정상 실행 및 종료된다.
+```
+# 최종 멈춘 상태에서의 main thread dump
+"main" #1 prio=5 os_prio=0 tid=0x00007f2c6800c000 nid=0xb39b waiting on condition [0x00007f2c6d051000]
+   java.lang.Thread.State: WAITING (parking)
+	at sun.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0x00000000fe2e62d0> (a java.util.concurrent.CountDownLatch$Sync)
+	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.doAcquireSharedInterruptibly(AbstractQueuedSynchronizer.java:997)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireSharedInterruptibly(AbstractQueuedSynchronizer.java:1304)
+	at java.util.concurrent.CountDownLatch.await(CountDownLatch.java:231)
+	at kr.pe.kwonnam.java_spring_threadpool.ThreadPoolTester.main(ThreadPoolTester.java:61)
+```
+  
+```
+# Starting with Thread Pool FORK_JOIN_COMMON_POOL_PARALLELISM_1000
+current java.util.concurrent.ForkJoinPool.common.parallelism : 1000
+# current thread [ForkJoinPool.commonPool-worker-441] idx : 0, current active thread count 5
+# current thread [ForkJoinPool.commonPool-worker-740] idx : 3, current active thread count 7
+# current thread [ForkJoinPool.commonPool-worker-15] idx : 6, current active thread count 10
+# current thread [ForkJoinPool.commonPool-worker-299] idx : 2, current active thread count 6
+
+# current thread [ForkJoinPool.commonPool-worker-247] idx : 46, current active thread count 56
+# current thread [ForkJoinPool.commonPool-worker-546] idx : 51, current active thread count 59
+# after thread generation ...
+# current thread [ForkJoinPool.commonPool-worker-688] idx : 48, current active thread count 59
+# current thread [ForkJoinPool.commonPool-worker-120] idx : 54, current active thread count 60
+
+...
+Exception in thread "ForkJoinPool.commonPool-worker-918" Exception in thread "ForkJoinPool.commonPool-worker-335" Exception in thread "ForkJoinPool.commonPool-worker-193" Exception in thread "ForkJoinPool.commonPool-worker-776" # current thread [ForkJoinPool.commonPool-worker-604] idx : 827, current active thread count 836
+Exception in thread "ForkJoinPool.commonPool-worker-634" # current thread [ForkJoinPool.commonPool-worker-477] idx : 836, current active thread count 843
+# current thread [ForkJoinPool.commonPool-worker-36] idx : 835, current active thread count 842
+# current thread [ForkJoinPool.commonPool-worker-21] idx : 830, current active thread count 842
+# current thread [ForkJoinPool.commonPool-worker-903] idx : 832, current active thread count 841
+java.lang.OutOfMemoryError: Java heap space# current thread [ForkJoinPool.commonPool-worker-619] idx : 
+833, current active thread count 841
+# current thread [ForkJoinPool.commonPool-worker-178] idx : 834, current active thread count java.lang.OutOfMemoryError: Java heap space
+java.lang.OutOfMemoryError: Java heap space
+841
+# current thread [ForkJoinPool.commonPool-worker-320	at java.util.concurrent.ForkJoinPool$WorkQueue.growArray(ForkJoinPool.java:886)
+] idx : 	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1687)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+829, current active thread count 837
+java.lang.OutOfMemoryError: Java heap space
+# current thread [ForkJoinPool.commonPool-worker-462] idx : 	at java.util.concurrent.ForkJoinPool$WorkQueue.growArray(ForkJoinPool.java:886)
+828, current active thread count 	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1687)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+837
+# current thread [ForkJoinPool.commonPool-worker-761] idx : 831, current active thread count 837
+java.lang.OutOfMemoryError: Java heap space
+# current thread [ForkJoinPool.commonPool-worker-441] idx : 0, , current active thread count 838, countDownLatch : 49998 END
+
+# current thread [ForkJoinPool.commonPool-worker-845] idx : 49891, , current active thread count 906, countDownLatch : 533 END
+# current thread [ForkJoinPool.commonPool-worker-660] idx : 49892, , current active thread count 906, countDownLatch : 532 END
+```
+
+## TODO
+* fixedThreadPool 을 무한정 생성하면 생기는 현상?
+* `ThreadPoolExecutor`가 생성하는 쓰레드가 사용하는 stack 메모리는 어디에 존재하는가?
+* [memory - How does Java (JVM) allocate stack for each thread - Stack Overflow](https://stackoverflow.com/questions/36898701/how-does-java-jvm-allocate-stack-for-each-thread)
