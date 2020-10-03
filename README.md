@@ -420,7 +420,60 @@ java.lang.OutOfMemoryError: Java heap space
 # current thread [ForkJoinPool.commonPool-worker-660] idx : 49892, , current active thread count 906, countDownLatch : 532 END
 ```
 
-## TODO
-* fixedThreadPool 을 무한정 생성하면 생기는 현상?
-* `ThreadPoolExecutor`가 생성하는 쓰레드가 사용하는 stack 메모리는 어디에 존재하는가?
+## Thread 가 생성하는 메모리는 어디에?
 * [memory - How does Java (JVM) allocate stack for each thread - Stack Overflow](https://stackoverflow.com/questions/36898701/how-does-java-jvm-allocate-stack-for-each-thread)
+* Thread Stack 메모리는 Heap 과 무관한 별도의 영역에 생긴다.
+* Linux 64bit 에서는 기본 Thread 하나당 1024kb(1mb)를 차지한다.
+* 따라서 heap 사이즈를 매우 작게 해도 Thread 를 수만개 생성할 수 있다. 단, 쓰레드에서 힙을 적게 사용할 때한해서.
+
+## 어째서 ForkJoinPool 에서 Java Heap OutOfMemory가 발생했나?
+* `ForkJoinPool` 에서 Pool size가 1000 밖에 안되는데도 Java Heap OutOfMemory 가 발생했는데, 이는 `-Xmx32m` 설정 때문이다.
+* Heap 이 너무 작았는데, `ForkJoinPool` 이 `workQueue`에 넣는 `ForkJoinTask`가 약 32mb 저도를 차지했기 때문에 발생했다.
+* 일반적으로 64mb 이상의 Heap 만 할당했다고 하더라도 발생할 수 없는 오류였다.
+* 따라서 `ForkJoinPool`이 쓰레드 생성을 위해서 heap 을 매번 사용한다고 생각할 필요는 없다.
+* `ThreadPoolExecutor`도 `workQueue`를 `LinkedBlockingQueue` 로 생성하고 `LinkedBlockingQueue#Node` 객체를 생성하는데,
+  이게 용량을 `ForkJoinTask` 보다 적게 사용하는 편이어서 `-Xmx32m`으로도 충분했다.
+
+
+## shutdown 없이 Thread Pool 자체를 계속 생성하면?
+* 결론부터
+  * Thread Pool 은 목적에 따라 특정 갯수만 생성해서 계속해서 재사용하는 것이지, 매번 필요할 때마다 생성하는게 아니다.
+  * Thread Pool 자체를 올바로 shutdown 하지 않고 계속 생성하면 제한 갯수에 다다르면 시스템이 다운되고,
+  * cahcedThreadPool 은 사용하지 않는 쓰레드를 반환하지만 어쨌든 이미 생성한 쓰레드를 재사용하지 않는 것은 Pool 의 개념에 어긋나 성능이 저하될 것이고,
+  * fixedThreadPool 은 이미 생성된 쓰레드를 반환하지 않기 때문에 결국 제한 갯수에 다다라서 crash 가 발생하게 될 것이다.
+
+### TooManyCachedThreadPoolTester
+* `Executors.newCachedThreadPool()` 를 계속 생성하고 shutdown 하지 않으면 제한 갯수(약 3만2천개)에 다다르면 시스템이 다운된다.
+* 제한 갯수에 다다르지 않으면 저절로 Thread Pool 의 쓰레드가 줄어들면서 마지막에는 올바로 종료 가능한 상태가 된다.
+
+![cachedThreadPool이 점점 줄어드는 모습](cachedThreadPool_no_shutdown.png)
+
+### TooManyFixedThreadPoolTester
+* `Executors.newFixedThreadPool(1)` 를 계속 생성하기 shutdown 하지 않으면 제한 갯수(약 3만2천개)에 다다르면 시스템이 다운된다.
+* 제한 갯수에 다다르지 않더라도, fixedThreadPool 은 시간이 지나도 쓰레드를 반환하지 않고 계속해서 쓰레드 풀에 생성된 쓰레드를 유지한다.
+* 이로 인해서 shutdown 을 명시적으로 하지 않고는 올바로 프로세스가 종료되지 않는다.
+* Thread Pool 에 있는 쓰레드가 daemon thread 가 아니기 때문이다.
+
+![fixedThreadPool이 줄어들지 않는 모습](fixedThreadPool_no_shutdown.png)
+
+```
+newFiexedThreadPool(1) idx 32581 - current Active Thread count 32584
+newFiexedThreadPool(1) idx 32582 - current Active Thread count 32585
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (mmap) failed to map 12288 bytes for committing reserved memory.
+# An error report file with more information is saved as:
+# ..../java-spring-thread-pool-test/hs_err_pid1396904.log
+OpenJDK 64-Bit Server VM warning: Attempt to protect stack guard pages failed.
+OpenJDK 64-Bit Server VM warning: Attempt to protect stack guard pages failed.
+OpenJDK 64-Bit Server VM warning: Attempt to deallocate stack guard pages failed.
+Exception in thread "main" java.lang.OutOfMemoryError: unable to create new native thread
+	at java.lang.Thread.start0(Native Method)
+	at java.lang.Thread.start(Thread.java:717)
+	at java.util.concurrent.ThreadPoolExecutor.addWorker(ThreadPoolExecutor.java:957)
+	at java.util.concurrent.ThreadPoolExecutor.execute(ThreadPoolExecutor.java:1367)
+	at java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:112)
+	at kr.pe.kwonnam.java_spring_threadpool.TooManyFixedThreadPoolTester.main(TooManyFixedThreadPoolTester.java:11)
+OpenJDK 64-Bit Server VM warning: Attempt to deallocate stack guard pages failed.
+OpenJDK 64-Bit Server VM warning: INFO: os::commit_memory(0x00007f6d1c10d000, 12288, 0) failed; error='메모리를 할당할 수 없습니다' (errno=12)
+```

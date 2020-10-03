@@ -40,7 +40,7 @@ application {
 }
 
 run {
-    maxHeapSize "4g"
+    maxHeapSize "64m"
 }
 
 test {
