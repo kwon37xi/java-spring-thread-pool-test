@@ -2,6 +2,8 @@
 * Java의 `Executors.newCachedThreadPool()`과 `Executors.newFixedThreadPool(갯수)`
 * SpringFramework 의 `ThreadPoolTaskExecutor` 설정에 따른 작동 방식 변화.
 * 위 두가지를 실제 코드로 확인해보기.
+* [kwonnam wiki - Spring @Async](https://kwonnam.pe.kr/wiki/springframework/async)
+* [kwonnam wiki - Java ExecutorService](https://kwonnam.pe.kr/wiki/java/concurrent/executorservice)
 
 ## 최대 쓰레드 갯수
 * [Java: What is the limit to the number of threads you can create? | Vanilla #Java](http://vanillajava.blogspot.com/2011/07/java-what-is-limit-to-number-of-threads.html)
